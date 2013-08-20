@@ -61,19 +61,19 @@ exports.Package = class Package
         (function(/*! Stitch !*/) {
           if (!this.#{@identifier}) {
             var modules = {}, cache = {}, require = function(name, root) {
-              var module = cache[name], path = expand(root, name), fn;
+              var path = expand(root, name), module = cache[path], fn;
               if (module) {
-                return module;
+                return module.exports;
               } else if (fn = modules[path] || modules[path = expand(path, './index')]) {
-                module = {id: name, exports: {}};
+                module = {id: path, exports: {}};
                 try {
-                  cache[name] = module.exports;
-                  fn(module.exports, function(name) {
+                  cache[path] = module;
+                  eval("(function(exports, require, module) {\\n"+fn[1]+"\\n})")(module.exports, function(name) {
                     return require(name, dirname(path));
                   }, module);
-                  return cache[name] = module.exports;
+                  return module.exports;
                 } catch (err) {
-                  delete cache[name];
+                  delete cache[path];
                   throw err;
                 }
               } else {
@@ -107,18 +107,16 @@ exports.Package = class Package
             };
           }
           return this.#{@identifier}.define;
-        }).call(this)({
+        }).call(this)(
       """
 
       index = 0
+      out = {}
       for name, {filename, source} of sources
-        result += if index++ is 0 then "" else ", "
-        result += JSON.stringify name
-        result += ": function(exports, require, module) {#{source}}"
+        out[name] = [filename, source]
 
-      result += """
-        });\n
-      """
+      result += JSON.stringify(out)
+      result += ");\n"
 
       callback err, result
 
